@@ -1,0 +1,7 @@
+[package]
+name = "zero-cost-abstractions-terse"
+version = "0.1.0"
+authors = ["Christopher R. Miller <xpm@mysteriouspants.com>"]
+
+[dependencies]
+num = "0.2"
