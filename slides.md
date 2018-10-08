@@ -114,6 +114,7 @@ No segfaults or data races.
         println!("{}, world!", s1);
     }
 ^
+
     xpm@vegas$ rustc borrowck1.rs
     error[E0382]: use of moved value: `s1`
      --> borrowck.rs:5:28
@@ -218,23 +219,23 @@ familiar
 
 -------------------------------------------------
 
-xpm@vegas$ cat borrowck5.rs
-struct MyStruct {
-  pub lambda: Box<Fn()> // store a lambda to call later
-}
-fn main() {
-  let s = "hello";
-  let speaker = MyStruct {
-    // the move keyword transfers ownership of s
-    // to the lambda - s is now invalid within main
-    lambda: Box::new(move || println!("{}, world", s))
-  };
-  // call the lambda
-  (speaker.lambda)();
-}
-xpm@vegas$ rustc borrowck5.rs
-xpm@vegas$ ./borrowck5
-hello, world
+    xpm@vegas$ cat borrowck5.rs
+    struct MyStruct {
+      pub lambda: Box<Fn()> // store a lambda to call later
+    }
+    fn main() {
+      let s = "hello";
+      let speaker = MyStruct {
+        // the move keyword transfers ownership of s
+        // to the lambda - s is now invalid within main
+        lambda: Box::new(move || println!("{}, world", s))
+      };
+      // call the lambda
+      (speaker.lambda)();
+    }
+    xpm@vegas$ rustc borrowck5.rs
+    xpm@vegas$ ./borrowck5
+    hello, world
 
 -------------------------------------------------
 
@@ -534,16 +535,16 @@ https://rustup.rs
 
 Manages installations of the Rust toolchain
 
-Similar to
-  rvm
-  rbenv
-  nvm
-  asdf
+Similar to  
+  rvm  
+  rbenv  
+  nvm  
+  asdf  
 
-unix:  curl https://sh.rustup.rs -sSf | sh
-       add $HOME/.cargo/bin to $PATH
-win32: run https://win.rustup.rs/x86_64
-       follow instructions
+    unix:  curl https://sh.rustup.rs -sSf | sh
+           add $HOME/.cargo/bin to $PATH
+    win32: run https://win.rustup.rs/x86_64
+           follow instructions
 
 -------------------------------------------------
 
@@ -601,8 +602,10 @@ try new ones and experiment
 
     use clap::{Arg, App};
 ^
+
     fn main() {
 ^
+
       let args = App::new("webget") // parse args with Clap
         .version("1.0")
         .author("Desert Code Camp 2018")
@@ -612,11 +615,14 @@ try new ones and experiment
           .index(1)) // that isn't named
         .get_matches();
 ^
+
       let url = args.value_of("URL").unwrap(); // panic if no url given
 ^      
+
       let client = reqwest::Client::new();
       let mut respon = client.get(url).send().unwrap(); // GET the url
 ^
+
       println!("response = {:?}", respon); // print some high-level info
       println!("body = {:?}", respon.text()) // print the actual contents
     }
@@ -710,58 +716,58 @@ waited to consume all its async message yet
 
 -> webget/src/main.rs <-
 
-extern crate clap;
-extern crate reqwest;
+    extern crate clap;
+    extern crate reqwest;
 
-use std::iter::FromIterator;
-use std::thread;
-use clap::{Arg, App};
-
--------------------------------------------------
-
--> webget/src/main.rs (continued) <-
-
-fn main() {
-  let args = App::new("webget")
-    .version("1.0")
-    .author("Desert Code Camp 2018")
-    .about("Runs get on a url and prints the response")
-    .arg(Arg::with_name("URL")
-      .required(true)
-      .index(1)
-      .multiple(true))
-    .get_matches();
+    use std::iter::FromIterator;
+    use std::thread;
+    use clap::{Arg, App};
 
 -------------------------------------------------
 
 -> webget/src/main.rs (continued) <-
 
-  let handles = Vec::from_iter(
-    args.values_of("URL").unwrap().map(|u| {
-      let url = String::from(u);
-      thread::spawn(move || {
-        reqwest::get(&url)
+    fn main() {
+      let args = App::new("webget")
+        .version("1.0")
+        .author("Desert Code Camp 2018")
+        .about("Runs get on a url and prints the response")
+        .arg(Arg::with_name("URL")
+          .required(true)
+          .index(1)
+          .multiple(true))
+        .get_matches();
+
+-------------------------------------------------
+
+-> webget/src/main.rs (continued) <-
+
+    let handles = Vec::from_iter(
+      args.values_of("URL").unwrap().map(|u| {
+        let url = String::from(u);
+        thread::spawn(move || {
+          reqwest::get(&url)
+        })
       })
-    })
-  );
+    );
   
 -------------------------------------------------
 
 -> webget/src/main.rs (continued) <-
 
-  for handle in handles {
-    let mut result = handle.join().unwrap();
-    match result {
-      Ok(mut r) => {
-        println!("response = {:?}", r);
-        println!("body = {:?}", r.text());
-      },
-      Err(e) => {
-        println!("Failed to get {:?}", e);
+      for handle in handles {
+        let mut result = handle.join().unwrap();
+        match result {
+          Ok(mut r) => {
+            println!("response = {:?}", r);
+            println!("body = {:?}", r.text());
+          },
+          Err(e) => {
+            println!("Failed to get {:?}", e);
+          }
+        }
       }
     }
-  }
-}
 
 -------------------------------------------------
 
@@ -900,7 +906,7 @@ rustup.rs - try it today
 Christopher R. Miller
 https://www.mysteriouspants.com/
 https://github.com/mysteriouspants/
-xpm@mysteriospants.com
+xpm@mysteriouspants.com
 mysteriouspants on irc.freenode.net
 
 Resources
