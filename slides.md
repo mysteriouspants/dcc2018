@@ -1,9 +1,14 @@
 %title: Rust: From Zero to Crate in Sixty Minutes
 %author: Christopher R. Miller
-%date: 2018-10-06
+%date: 2019-10-12
 
 -> Rust: From Zero to Crate in 60 Minutes <-
 ============================================
+
+        _~^~^~_
+    \) /  o o  \ (/
+      '_   u   _'
+      \ '-----' /
 
 ^
 -> Rust is a systems language pursuing the trifecta: <-
@@ -23,6 +28,10 @@ sacrificing safety:
 * Dropbox
 * Redox
 * OpenDNS
+* Firecracker (AWS Lambda microvm)
+* Google Fuchsia
+* Facebook Monoke (material source control server), Libre cryptocurrency
+* Discord
 
 -------------------------------------------------
 
@@ -30,8 +39,8 @@ sacrificing safety:
 
 1. Rust - speed, safety, and concurrency features
 2. Toolchain - cargo, crates, dependencies
-3. Example - querying a webservice with an api that wouldn't
-   look out of place in a language like Ruby
+3. Example - handling an oauth workflow with jwt session
+   validation
 
 -------------------------------------------------
 
@@ -561,16 +570,16 @@ Making a new crate (library or program) is easy
 
 -> # Intro to Cargo <-
 
-Make a new binary (executable) crate called webget
+Make a new binary (executable) crate called esirs
 
-    xpm@vegas$ cargo new webget --bin --name webget
-         Created binary (application) `webget` project
+    xpm@vegas$ cargo new esirs --bin --name esirs
+         Created binary (application) `esirs` project
 
 Configure the crate using `Cargo.toml` file
 
     xpm@vegas$ cat Cargo.toml
     [package] # this is some basic information about your crate
-    name = "webget" # the name of your crate, what others will call it
+    name = "esirs" # the name of your crate, what others will call it
     version = "0.1.0" # the version of your crate
     authors = ["Christopher R. Miller <xpm@mysteriouspants.com>"]
 
@@ -583,8 +592,15 @@ is in Ruby, Maven, or Node
 
     xpm@vegas$ cat Cargo.toml # continued
     [dependencies] # your crate's dependencies
-    clap = "2.32.0" # a command-line arg parsing library
-    reqwest = "0.9.2" # a fluent http library built on async io
+    gotham = "0.4.0" # a fast async webserver
+    gotham_derive = "0.4.0" # some derive macros for gotham
+    hyper = "0.12.35" # an http library for rust
+    mime = "0.3.14" # some standard mime type constants
+    mysteriouspants-esi = { path = "../../esirs" } # another crate
+    # in the same workspace
+    serde = "1.0.101" # a fast de/serializer generator
+    serde_derive = "1.0.101" # some derive macros for serde
+    toml = "0.5.3" # for reading and writing Tom's Markup Language
 
 Find new libraries on crates.io
 
@@ -595,212 +611,7 @@ try new ones and experiment
 
 -------------------------------------------------
 
--> webget/src/main.rs <-
-
-    extern crate clap; // these are going away in
-    extern crate reqwest; // a future realease
-
-    use clap::{Arg, App};
-^
-
-    fn main() {
-^
-
-      let args = App::new("webget") // parse args with Clap
-        .version("1.0")
-        .author("Desert Code Camp 2018")
-        .about("Runs get on a url and prints the response")
-        .arg(Arg::with_name("URL") // takes a single argument
-          .required(true) // that is required
-          .index(1)) // that isn't named
-        .get_matches();
-^
-
-      let url = args.value_of("URL").unwrap(); // panic if no url given
-^      
-
-      let client = reqwest::Client::new();
-      let mut respon = client.get(url).send().unwrap(); // GET the url
-^
-
-      println!("response = {:?}", respon); // print some high-level info
-      println!("body = {:?}", respon.text()) // print the actual contents
-    }
-
--------------------------------------------------
-
-# Confession
-^
-
-The above code is entirely cross-platform
-^
-
-The following example program outputs come from my Windows PC
-^
-
-You can easily recompile (most) Rust programs for other targets
-
--------------------------------------------------
-
-    target\debug\webget.exe --help
-    webget 1.0
-    Desert Code Camp 2018
-    Runs get on a url and prints the response
-
-    USAGE:
-        webget.exe <URL>
-
-    FLAGS:
-        -h, --help       Prints help information
-        -V, --version    Prints version information
-
-    ARGS:
-        <URL>
-
--------------------------------------------------
-
-    target\debug\webget.exe https://www.mysteriouspants.com/
-    response = Response { url: "https://www.mysteriouspants.com/"
-                        , status: 200
-                        , ... }
-    body = Ok("<!DOCTYPE html>
-               <html lang=\"en\">
-               <head>
-                  <!--
-                    A city made of wood is built in a forest,
-                    a city made of stone is built in the mountains,
-                    but a city made of dreams is built in heaven.
-                      Jovian proverb
-                  -->
-                ...")
-
--------------------------------------------------
-
-What happens if we call a website that doesn't exist?
-
-    target\debug\webget.exe https://www.mysterioustrousers.com/
-    thread 'main' panicked at 'called `Result::unwrap()` on an `Err` value:
-    Inner { kind: Hyper(Error { kind: Connect, cause: Some(Os { code: 10060, kind: TimedOut,
-      ... }) }), url: Some("https://www.mysterioustrousers.com/") }', libcore\result.rs:945:5
-    note: Run with `RUST_BACKTRACE=1` for a backtrace.
-^
-
-Again, with the backtrace:
-
-    target\debug\webget.exe https://www.mysterioustrousers.com/
-    thread 'main' panicked at ...
-    stack backtrace:
-    ...
-      11: webget::main
-                 at ./src/main.rs:18
-    ...
-
--------------------------------------------------
-
--> What if webget was parallel? <-
-^
-
-In addition to system threads (pthreads or winthreads), Rust
-supports async
-^
-
-The library from the previous example, reqwest, is a layer on
-Hyper, an HTTP implementation on Tokio, an async i/o library,
-which is built on mio, a native cross-platform async io library
-^
-
-Until we called .text() the response was "unused" and hadn't
-waited to consume all its async message yet
-
--------------------------------------------------
-
--> webget/src/main.rs <-
-
-    extern crate clap;
-    extern crate reqwest;
-
-    use std::iter::FromIterator;
-    use std::thread;
-    use clap::{Arg, App};
-
--------------------------------------------------
-
--> webget/src/main.rs (continued) <-
-
-    fn main() {
-      let args = App::new("webget")
-        .version("1.0")
-        .author("Desert Code Camp 2018")
-        .about("Runs get on a url and prints the response")
-        .arg(Arg::with_name("URL")
-          .required(true)
-          .index(1)
-          .multiple(true))
-        .get_matches();
-
--------------------------------------------------
-
--> webget/src/main.rs (continued) <-
-
-    let handles = Vec::from_iter(
-      args.values_of("URL").unwrap().map(|u| {
-        let url = String::from(u);
-        thread::spawn(move || {
-          reqwest::get(&url)
-        })
-      })
-    );
-  
--------------------------------------------------
-
--> webget/src/main.rs (continued) <-
-
-      for handle in handles {
-        let mut result = handle.join().unwrap();
-        match result {
-          Ok(mut r) => {
-            println!("response = {:?}", r);
-            println!("body = {:?}", r.text());
-          },
-          Err(e) => {
-            println!("Failed to get {:?}", e);
-          }
-        }
-      }
-    }
-
--------------------------------------------------
-
-    target\debug\webget.exe \
-      https://www.mysterioustrousers.com/ \
-      https://www.mysteriouspants.com/ \
-      https://www.rust-lang.org/
-
--------------------------------------------------
-
-    Failed to get Inner { kind: Hyper(Error { kind: Connect, ... })
-                        , url: Some("https://www.mysterioustrousers.com/") }
-    response = Response { url: "https://www.mysteriouspants.com/"
-                        , status: 200
-                        ... }
-    body = Ok("<!DOCTYPE html>
-               <html lang=\"en\">
-               <head>
-                <!--
-                    A city made of wood is built in a forest,
-                    a city made of stone is built in the mountains,
-                    but a city made of dreams is built in heaven.
-                      Jovian proverb
-                -->
-                ...")
-    response = Response { url: "https://www.rust-lang.org/"
-                        , status: 200
-                        ... }
-    body = Ok("<!DOCTYPE html>
-               <html>
-               <head>
-                 <title>The Rust Programming Language</title>
-               ...")
+-> live coding time! <-
 
 -------------------------------------------------
 
@@ -907,7 +718,7 @@ Christopher R. Miller
 https://www.mysteriouspants.com/
 https://github.com/mysteriouspants/
 xpm@mysteriouspants.com
-mysteriouspants on irc.freenode.net
+discord: Necrothitude#0292
 
 Resources
 
@@ -916,34 +727,14 @@ users.rust-lang.org
 crates.io
 rustup.rs
 github.com/rust-unofficial/awesome-rust
+rust.azdevs.org
+
+The Rust Programming Language
+doc.rust-lang.org/book
+smile.amazon.com/dp/1718500440
+
+discord.gg/rust-lang
 
 irc.mozilla.net/#rust
 irc.mozilla.net/#rust-beginners
 this-week-in-rust.org
-
--------------------------------------------------
-                                                                                              
-       `-////-     `--. `-::.   -::-       `:///:.     `---------`    `-:::.     `--. `-::.
-     .yNNNNNNNm+   oNNN+mNNNNy/mNNNNm:   :hNNNNNNNd:   oNNNNNNNNN/  .yNNNNNNd/   oNNm+mNNNNh`
-     dNNy. .yNNN-  oNNNd//hNNNmo/oNNNh  .mNNo` .dNNm`  .---:dNNNy` -mNNy.`/NNNo  oNNNd+/hNNN+
-       `-://yNNN:  oNNN:  -NNNs   dNNd     .-://dNNN`     -dNNm/   hNNN`   hNNN. oNNN-  .NNNs
-     :hNNmyshNNN:  oNNN-  -NNNo   dNNd   /dNNdysmNNN`    +NNNh.    mNNm`   sNNN: oNNN.  `NNNs
-    :NNNs   oNNN:  oNNN-  -NNNo   dNNd  oNNN+   hNNN`  .hNNNy.`    hNNN.   yNNN. oNNN.  `NNNs
-    +NNNy``:mNNNy` oNNN-  -NNNo   dNNd  yNNN+``+NNNNo `mNNNNNNNmh/ :NNNy``/NNNs  oNNN.  `NNNs
-    `yNNNNNmsyNNy. oNNN-  -NNNo   dNNd  .dNNNNNmohNms``Ndyo++osyms  -hNNNNNNd/   oNNN.  `NNNs
-      .:/:-   -.   `---    ---`   ---.    .:/:.   -`     `....`       `://:.     .---    ---.
-                 .-.`                                  .-....:/-
-                   .::-.``                              `.-` -/`
-                     `.-:/::-..```              ``..-::/:.` `/.
-                         `.-:///////::::::::://////:-.`     -`
-                              ``..---::::::---..``
-
--> Work Hard. Have Fun. Make History. <-
-
--> Come visit us in the Expo Area <-
-
--> Event Dinner tonight <-
--> Hanger 9 <-
--> 980 E. Pecos Road <-
--> Chandler, AZ 85225 <-
--> 6pm – 9pm <-
